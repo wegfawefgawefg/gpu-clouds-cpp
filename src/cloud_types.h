@@ -85,13 +85,13 @@ struct LightSettings
 
 struct PostSettings
 {
-    float exposure = 1.05f;
-    float contrast = 1.02f;
-    float bloomIntensity = 0.16f;
-    float bloomThreshold = 0.68f;
-    float shaftIntensity = 0.18f;
-    float shaftDecay = 0.93f;
-    float bloomRadius = 1.0f;
+    float exposure = 1.22f;
+    float contrast = 1.06f;
+    float bloomIntensity = 0.65f;
+    float bloomThreshold = 0.55f;
+    float shaftIntensity = 2.25f;
+    float shaftDecay = 0.97f;
+    float bloomRadius = 2.2f;
 };
 
 struct alignas(16) GpuFrameParams

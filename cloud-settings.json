@@ -1,0 +1,52 @@
+{
+  "cloud": {
+    "absorption": 1.0800000429153442,
+    "animation_rate": 3.0,
+    "base_height": 1823.0,
+    "coverage": 0.28200000524520874,
+    "density": 0.7149999737739563,
+    "detail_scale": 0.005229999776929617,
+    "detail_weight": 0.25099998712539673,
+    "edge_softness": 0.20999999344348907,
+    "light_steps": 16,
+    "primary_scale": 0.0004600000102072954,
+    "primary_steps": 24,
+    "resolution": 0,
+    "sky_light": 0.699999988079071,
+    "thickness": 1252.0,
+    "wind_direction_degrees": -155.0,
+    "wind_speed": 120.0
+  },
+  "light": {
+    "azimuth_degrees": -167.0,
+    "elevation_degrees": 79.0,
+    "forward_scattering": 0.3109999895095825,
+    "silver_lining": 1.0,
+    "sky_horizon_color": [
+      0.8399999737739563,
+      0.8999999761581421,
+      0.9800000190734863
+    ],
+    "sky_top_color": [
+      0.23999999463558197,
+      0.49000000953674316,
+      0.9200000166893005
+    ],
+    "sun_color": [
+      1.0,
+      0.949999988079071,
+      0.8799999952316284
+    ],
+    "sun_intensity": 3.5
+  },
+  "post": {
+    "bloom_intensity": 1.3910000324249268,
+    "bloom_radius": 1.1419999599456787,
+    "bloom_threshold": 0.26899999380111694,
+    "contrast": 1.434999942779541,
+    "exposure": 0.8650000095367432,
+    "shaft_decay": 0.9459999799728394,
+    "shaft_intensity": 3.6649999618530273
+  },
+  "version": 1
+}

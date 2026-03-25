@@ -375,13 +375,13 @@ void App::BuildUi()
     ImGui::SliderFloat("Animation Rate", &m_cloudSettings.animationRate, 0.0f, 3.0f);
 
     ImGui::SeparatorText("Post");
-    ImGui::SliderFloat("Exposure", &m_postSettings.exposure, 0.7f, 1.5f);
-    ImGui::SliderFloat("Contrast", &m_postSettings.contrast, 0.8f, 1.4f);
-    ImGui::SliderFloat("Bloom", &m_postSettings.bloomIntensity, 0.0f, 0.6f);
-    ImGui::SliderFloat("Bloom Threshold", &m_postSettings.bloomThreshold, 0.35f, 1.2f);
-    ImGui::SliderFloat("Bloom Radius", &m_postSettings.bloomRadius, 0.5f, 2.5f);
-    ImGui::SliderFloat("God Rays", &m_postSettings.shaftIntensity, 0.0f, 0.6f);
-    ImGui::SliderFloat("Ray Decay", &m_postSettings.shaftDecay, 0.75f, 0.98f);
+    ImGui::SliderFloat("Exposure", &m_postSettings.exposure, 0.7f, 2.4f);
+    ImGui::SliderFloat("Contrast", &m_postSettings.contrast, 0.8f, 1.6f);
+    ImGui::SliderFloat("Bloom", &m_postSettings.bloomIntensity, 0.0f, 2.5f);
+    ImGui::SliderFloat("Bloom Threshold", &m_postSettings.bloomThreshold, 0.1f, 3.0f);
+    ImGui::SliderFloat("Bloom Radius", &m_postSettings.bloomRadius, 0.5f, 6.0f);
+    ImGui::SliderFloat("God Rays", &m_postSettings.shaftIntensity, 0.0f, 6.0f);
+    ImGui::SliderFloat("Ray Decay", &m_postSettings.shaftDecay, 0.75f, 0.99f);
 
     ImGui::Spacing();
     ImGui::Text("RMB to capture mouse");
