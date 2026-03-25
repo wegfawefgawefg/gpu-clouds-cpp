@@ -1,0 +1,11 @@
+{
+  "editor.formatOnSave": true,
+  "C_Cpp.formatting": "clangFormat",
+  "C_Cpp.clang_format_style": "file",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": false,
+  "files.associations": {
+    "*.comp": "glsl"
+  }
+}

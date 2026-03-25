@@ -1,0 +1,236 @@
+#version 460
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(rgba16f, binding = 0) uniform writeonly image2D outputImage;
+
+layout(std140, binding = 1) uniform FrameParams
+{
+    vec4 cameraPosition;
+    vec4 cameraForward;
+    vec4 cameraRight;
+    vec4 cameraUp;
+    vec4 renderInfo;
+    vec4 timeInfo;
+    vec4 cloudShape;
+    vec4 cloudMarch;
+    vec4 lightDirection;
+    vec4 sunColorIntensity;
+    vec4 skyTopColor;
+    vec4 skyHorizonColor;
+    vec4 wind;
+    vec4 postInfo;
+    vec4 sunScreen;
+    vec4 postExtra;
+    vec4 overlayInfo;
+} params;
+
+const float PI = 3.1415926535;
+
+float saturate(float value)
+{
+    return clamp(value, 0.0, 1.0);
+}
+
+float hash13(vec3 p)
+{
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+float valueNoise(vec3 p)
+{
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n000 = hash13(i + vec3(0.0, 0.0, 0.0));
+    float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+    float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+
+    float nx00 = mix(n000, n100, f.x);
+    float nx10 = mix(n010, n110, f.x);
+    float nx01 = mix(n001, n101, f.x);
+    float nx11 = mix(n011, n111, f.x);
+    float nxy0 = mix(nx00, nx10, f.y);
+    float nxy1 = mix(nx01, nx11, f.y);
+    return mix(nxy0, nxy1, f.z);
+}
+
+float fbm(vec3 p)
+{
+    float value = 0.0;
+    float amplitude = 0.5;
+    for (int octave = 0; octave < 5; ++octave)
+    {
+        value += amplitude * valueNoise(p);
+        p = p * 2.03 + vec3(17.1, 9.2, 13.4);
+        amplitude *= 0.5;
+    }
+    return value;
+}
+
+float hg(float cosTheta, float g)
+{
+    float gg = g * g;
+    float denom = pow(max(1.0 + gg - 2.0 * g * cosTheta, 0.001), 1.5);
+    return (1.0 - gg) / (4.0 * PI * denom);
+}
+
+vec3 skyColor(vec3 rayDir, vec3 sunDir)
+{
+    float heightT = saturate(rayDir.y * 0.5 + 0.5);
+    vec3 baseSky = mix(params.skyHorizonColor.rgb, params.skyTopColor.rgb, pow(heightT, 0.6));
+    float sunAmount = pow(max(dot(rayDir, sunDir), 0.0), 256.0);
+    vec3 sunGlow = params.sunColorIntensity.rgb * params.sunColorIntensity.w * (2.0 * sunAmount);
+    float groundFade = smoothstep(-0.18, 0.12, rayDir.y);
+    vec3 ground = vec3(0.08, 0.10, 0.12);
+    return mix(ground, baseSky + sunGlow, groundFade);
+}
+
+float cloudDensity(vec3 worldPos)
+{
+    float layerBottom = params.cloudShape.x;
+    float layerTop = layerBottom + params.cloudShape.y;
+    float layerHeight = layerTop - layerBottom;
+    float h = saturate((worldPos.y - layerBottom) / max(layerHeight, 1.0));
+    if (h <= 0.0 || h >= 1.0)
+    {
+        return 0.0;
+    }
+
+    vec2 windOffset = params.wind.xy * (params.timeInfo.x * params.wind.z);
+    vec3 basePos = vec3(worldPos.x + windOffset.x, worldPos.y, worldPos.z + windOffset.y);
+    vec3 evolutionOffset = vec3(
+        params.timeInfo.x * 14.0,
+        params.timeInfo.x * 3.0,
+        params.timeInfo.x * -9.0
+    );
+    float baseNoise = fbm(basePos * params.cloudShape.z);
+    float detailNoise = fbm(basePos * params.cloudShape.w + evolutionOffset * params.cloudShape.w + vec3(2.3, -4.1, 1.7));
+
+    float heightShape =
+        smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.72, 1.0, h));
+    float threshold = mix(0.84, 0.18, params.cloudMarch.x);
+    float erosion = mix(0.0, detailNoise, params.cloudMarch.y);
+    float softness = max(params.cloudMarch.z, 0.02);
+    float shape = smoothstep(threshold - softness, 1.0, baseNoise - erosion * 0.28);
+
+    float density = shape * heightShape * params.cloudMarch.w;
+    density *= mix(0.65, 1.2, h);
+    return max(density, 0.0);
+}
+
+bool intersectCloudLayer(vec3 rayOrigin, vec3 rayDir, out float tMin, out float tMax)
+{
+    float bottom = params.cloudShape.x;
+    float top = bottom + params.cloudShape.y;
+
+    if (abs(rayDir.y) < 1e-4)
+    {
+        if (rayOrigin.y < bottom || rayOrigin.y > top)
+        {
+            return false;
+        }
+        tMin = 0.0;
+        tMax = 20000.0;
+        return true;
+    }
+
+    float t0 = (bottom - rayOrigin.y) / rayDir.y;
+    float t1 = (top - rayOrigin.y) / rayDir.y;
+    tMin = max(min(t0, t1), 0.0);
+    tMax = max(t0, t1);
+    return tMax > tMin;
+}
+
+float sampleLight(vec3 worldPos, vec3 sunDir)
+{
+    int lightSteps = max(int(params.lightDirection.w + 0.5), 1);
+    float totalDensity = 0.0;
+    float lightDistance = params.cloudShape.y * 1.35;
+    float stepSize = lightDistance / float(lightSteps);
+    vec3 samplePos = worldPos;
+
+    for (int i = 0; i < lightSteps; ++i)
+    {
+        samplePos += sunDir * stepSize;
+        totalDensity += cloudDensity(samplePos) * stepSize;
+    }
+
+    return exp(-totalDensity * params.sunColorIntensity.w * 0.55);
+}
+
+vec3 marchClouds(vec3 rayOrigin, vec3 rayDir, vec3 sunDir)
+{
+    float tMin;
+    float tMax;
+    if (!intersectCloudLayer(rayOrigin, rayDir, tMin, tMax))
+    {
+        return skyColor(rayDir, sunDir);
+    }
+
+    int primarySteps = max(int(params.timeInfo.z + 0.5), 8);
+    float stepSize = (tMax - tMin) / float(primarySteps);
+    float jitter = hash13(vec3(gl_GlobalInvocationID.xy, params.timeInfo.y));
+    float t = tMin + jitter * stepSize;
+    float transmittance = 1.0;
+    vec3 radiance = vec3(0.0);
+    vec3 sky = skyColor(rayDir, sunDir);
+    float cosTheta = dot(rayDir, sunDir);
+    float phase = hg(cosTheta, params.wind.w) +
+                  hg(cosTheta, -0.35) * params.cameraPosition.w;
+
+    for (int step = 0; step < primarySteps && transmittance > 0.01; ++step)
+    {
+        vec3 samplePos = rayOrigin + rayDir * t;
+        float density = cloudDensity(samplePos);
+        if (density > 0.001)
+        {
+            float lightVisibility = sampleLight(samplePos, sunDir);
+            float ambientTerm = mix(0.45, 1.0, saturate((samplePos.y - params.cloudShape.x) / params.cloudShape.y));
+            vec3 skylightTint = mix(params.skyHorizonColor.rgb, params.skyTopColor.rgb, ambientTerm);
+            vec3 ambient = mix(sky, skylightTint, 0.7) * params.skyHorizonColor.w * ambientTerm;
+            vec3 direct =
+                params.sunColorIntensity.rgb * params.sunColorIntensity.w * phase * lightVisibility;
+
+            float extinction = exp(-density * stepSize * params.skyTopColor.w);
+            float scattered = 1.0 - extinction;
+            radiance += transmittance * scattered * (ambient + direct);
+            transmittance *= extinction;
+        }
+        t += stepSize;
+    }
+
+    return radiance + sky * transmittance;
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 renderSize = ivec2(params.renderInfo.xy);
+    if (pixel.x >= renderSize.x || pixel.y >= renderSize.y)
+    {
+        return;
+    }
+
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(renderSize);
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+    vec3 rayDir = normalize(
+        params.cameraForward.xyz +
+        ndc.x * params.cameraRight.xyz +
+        ndc.y * params.cameraUp.xyz
+    );
+    vec3 sunDir = normalize(params.lightDirection.xyz);
+    vec3 color = marchClouds(params.cameraPosition.xyz, rayDir, sunDir);
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0 / 2.2));
+
+    imageStore(outputImage, pixel, vec4(color, 1.0));
+}
